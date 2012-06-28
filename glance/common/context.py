@@ -15,6 +15,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 import webob.exc
 
 from glance.common import exception
@@ -39,7 +40,7 @@ class RequestContext(object):
 
     def __init__(self, auth_tok=None, user=None, tenant=None, roles=None,
                  is_admin=False, read_only=False, show_deleted=False,
-                 owner_is_tenant=True):
+                 owner_is_tenant=True, service_catalog=None):
         self.auth_tok = auth_tok
         self.user = user
         self.tenant = tenant
@@ -48,6 +49,7 @@ class RequestContext(object):
         self.read_only = read_only
         self._show_deleted = show_deleted
         self.owner_is_tenant = owner_is_tenant
+        self.service_catalog = service_catalog
 
     @property
     def owner(self):
@@ -105,6 +107,10 @@ class ContextMiddleware(wsgi.Middleware):
         #NOTE(bcwaldon): This header is deprecated in favor of X-Auth-Token
         deprecated_token = req.headers.get('X-Storage-Token')
 
+        service_catalog = None
+        if req.headers.get('X_SERVICE_CATALOG') is not None:
+            service_catalog = json.loads(req.headers.get('X_SERVICE_CATALOG'))
+
         kwargs = {
             'user': req.headers.get('X-User-Id'),
             'tenant': req.headers.get('X-Tenant-Id'),
@@ -112,6 +118,7 @@ class ContextMiddleware(wsgi.Middleware):
             'is_admin': CONF.admin_role.strip().lower() in roles,
             'auth_tok': req.headers.get('X-Auth-Token', deprecated_token),
             'owner_is_tenant': CONF.owner_is_tenant,
+            'service_catalog': service_catalog,
         }
 
         return RequestContext(**kwargs)
