@@ -242,6 +242,12 @@ class Store(glance.store.base.Store):
         else:  # Defaults https
             self.full_auth_address = 'https://' + self.auth_address
 
+    def set_context(self, context):
+        """
+        Provides a context for the store to use for credentials, tokens, etc.
+        """
+        self.context = context
+
     def get(self, location):
         """
         Takes a `glance.store.location.Location` object that indicates

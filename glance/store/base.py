@@ -52,6 +52,14 @@ class Store(object):
         """
         pass
 
+    def set_context(self, context):
+        """
+        Provides a context for the store to use for credentials, tokens, etc.
+        Any store that needs access to a context for backend configuration
+        should implement this method.
+        """
+        pass
+
     def get_schemes(self):
         """
         Returns a tuple of schemes which this store can handle.
