@@ -426,13 +426,22 @@ class Store(glance.store.base.Store):
             self.full_auth_address, self.user, self.key,
             storage_url=self.storage_url, token=self.token)
 
-        create_container_if_missing(self.container, swift_conn)
-
         obj_name = str(image_id)
+        if self.multi_tenant:
+            # NOTE: When using multi-tenant we create containers for each
+            # image so we can set permissions on each image in swift
+            container = self.container + '_' + obj_name
+            auth_or_store_url = self.storage_url
+        else:
+            container = self.container
+            auth_or_store_url = self.auth_address
+
+        create_container_if_missing(container, swift_conn)
+
         location = StoreLocation({'scheme': self.scheme,
-                                  'container': self.container,
+                                  'container': container,
                                   'obj': obj_name,
-                                  'auth_or_store_url': self.auth_address,
+                                  'auth_or_store_url': auth_or_store_url,
                                   'user': self.user,
                                   'key': self.key})
 
@@ -442,7 +451,7 @@ class Store(glance.store.base.Store):
             if image_size > 0 and image_size < self.large_object_size:
                 # Image size is known, and is less than large_object_size.
                 # Send to Swift with regular PUT.
-                obj_etag = swift_conn.put_object(self.container, obj_name,
+                obj_etag = swift_conn.put_object(container, obj_name,
                                                  image_file,
                                                  content_length=image_size)
             else:
@@ -477,7 +486,7 @@ class Store(glance.store.base.Store):
                     chunk_name = "%s-%05d" % (obj_name, chunk_id)
                     reader = ChunkReader(image_file, checksum, chunk_size)
                     chunk_etag = swift_conn.put_object(
-                        self.container, chunk_name, reader,
+                        container, chunk_name, reader,
                         content_length=content_length)
                     bytes_read = reader.bytes_read
                     msg = _("Wrote chunk %(chunk_id)d/%(total_chunks)s "
@@ -489,7 +498,7 @@ class Store(glance.store.base.Store):
                         # Delete the last chunk, because it's of zero size.
                         # This will happen if image_size == 0.
                         LOG.debug(_("Deleting final zero-length chunk"))
-                        swift_conn.delete_object(self.container, chunk_name)
+                        swift_conn.delete_object(container, chunk_name)
                         break
 
                     chunk_id += 1
@@ -502,7 +511,7 @@ class Store(glance.store.base.Store):
 
                 # Now we write the object manifest and return the
                 # manifest's etag...
-                manifest = "%s/%s" % (self.container, obj_name)
+                manifest = "%s/%s" % (container, obj_name)
                 headers = {'ETag': hashlib.md5("").hexdigest(),
                            'X-Object-Manifest': manifest}
 
@@ -511,7 +520,7 @@ class Store(glance.store.base.Store):
                 # of each chunk...so we ignore this result in favour of
                 # the MD5 of the entire image file contents, so that
                 # users can verify the image file contents accordingly
-                swift_conn.put_object(self.container, obj_name,
+                swift_conn.put_object(container, obj_name,
                                       None, headers=headers)
                 obj_etag = checksum.hexdigest()
 
@@ -570,6 +579,9 @@ class Store(glance.store.base.Store):
             else:
                 swift_conn.delete_object(loc.container, loc.obj)
 
+            if self.multi_tenant:
+                swift_conn.delete_container(loc.container)
+
         except swiftclient.ClientException, e:
             if e.http_status == httplib.NOT_FOUND:
                 uri = location.get_store_uri()
@@ -577,7 +589,6 @@ class Store(glance.store.base.Store):
                                          "uri %(uri)s") % locals())
             else:
                 raise
-
 
 class ChunkReader(object):
     def __init__(self, fd, checksum, total):
