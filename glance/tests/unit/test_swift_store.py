@@ -73,6 +73,9 @@ def stub_out_swiftclient(stubs, swift_store_auth_version):
     def fake_put_container(url, token, container, **kwargs):
         fixture_containers.append(container)
 
+    def fake_post_container(url, token, container, headers, http_conn=None):
+        pass
+
     def fake_put_object(url, token, container, name, contents, **kwargs):
         # PUT returns the ETag header for the newly-added object
         # Large object manifest...
@@ -174,6 +177,8 @@ def stub_out_swiftclient(stubs, swift_store_auth_version):
               'head_container', fake_head_container)
     stubs.Set(swiftclient.client,
               'put_container', fake_put_container)
+    stubs.Set(swiftclient.client,
+              'post_container', fake_post_container)
     stubs.Set(swiftclient.client,
               'put_object', fake_put_object)
     stubs.Set(swiftclient.client,
@@ -569,6 +574,33 @@ class SwiftTests(object):
         loc = get_location_from_uri("swift://%s:key@authurl/glance/noexist" % (
                 self.swift_store_user))
         self.assertRaises(exception.NotFound, self.store.delete, loc)
+
+    def test_read_acl_public(self):
+        """
+        Test that we can set a public read acl.
+        """
+        uri = "swift://%s:key@authurl/glance/%s" % (
+            self.swift_store_user, FAKE_UUID)
+        loc = get_location_from_uri(uri)
+        self.store.set_acls(loc, public=True)
+
+    def test_read_acl_tenants(self):
+        """
+        Test that we can set read acl for tenants.
+        """
+        uri = "swift://%s:key@authurl/glance/%s" % (
+            self.swift_store_user, FAKE_UUID)
+        loc = get_location_from_uri(uri)
+        self.store.set_acls(loc, read_tenants=['matt', 'mark'])
+
+    def test_read_write_public(self):
+        """
+        Test that we can set write acl for tenants.
+        """
+        uri = "swift://%s:key@authurl/glance/%s" % (
+            self.swift_store_user, FAKE_UUID)
+        loc = get_location_from_uri(uri)
+        self.store.set_acls(loc, write_tenants=['frank', 'jim'])
 
 
 class TestStoreAuthV1(base.StoreClearingUnitTest, SwiftTests):
