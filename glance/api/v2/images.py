@@ -28,6 +28,7 @@ import glance.db
 from glance.openstack.common import cfg
 from glance.openstack.common import timeutils
 import glance.schema
+from glance.api.v2 import update_image_read_acl
 
 
 LOG = logging.getLogger(__name__)
@@ -83,6 +84,8 @@ class ImagesController(object):
         else:
             image['tags'] = []
 
+        update_image_read_acl(req, self.db_api, image)
+
         return self._normalize_properties(dict(image))
 
     def index(self, req, marker=None, limit=None, sort_key='created_at',
@@ -132,6 +135,8 @@ class ImagesController(object):
             raise webob.exc.HTTPNotFound()
 
         image = self._normalize_properties(dict(image))
+
+        update_image_read_acl(req, self.db_api, image)
 
         if tags is not None:
             self.db_api.image_tag_set_all(req.context, image_id, tags)

@@ -20,15 +20,15 @@ import logging
 import webob.exc
 
 from glance.common import exception
+from glance.api.v1 import controller
 from glance.common import utils
 from glance.common import wsgi
 from glance import registry
 
-
 LOG = logging.getLogger(__name__)
 
 
-class Controller(object):
+class Controller(controller.BaseController):
 
     def index(self, req, image_id):
         """
@@ -66,6 +66,7 @@ class Controller(object):
 
         try:
             registry.delete_member(req.context, image_id, id)
+            self._update_store_acls(req, image_id)
         except exception.NotFound, e:
             msg = "%s" % e
             LOG.debug(msg)
@@ -104,6 +105,7 @@ class Controller(object):
             can_share = bool(body['member']['can_share'])
         try:
             registry.add_member(req.context, image_id, id, can_share)
+            self._update_store_acls(req, image_id)
         except exception.Invalid, e:
             msg = "%s" % e
             LOG.debug(msg)
@@ -135,6 +137,7 @@ class Controller(object):
 
         try:
             registry.replace_members(req.context, image_id, body)
+            self._update_store_acls(req, image_id)
         except exception.Invalid, e:
             msg = "%s" % e
             LOG.debug(msg)
@@ -174,6 +177,12 @@ class Controller(object):
             LOG.debug(msg)
             raise webob.exc.HTTPForbidden(msg)
         return dict(shared_images=members)
+
+    def _update_store_acls(self, req, image_id):
+        image_meta = self.get_image_meta_or_404(req, image_id)
+        location_uri = image_meta.get('location')
+        public = image_meta.get('is_public')
+        self.update_store_acls(req, image_id, location_uri, public)
 
 
 def create_resource():

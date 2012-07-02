@@ -20,6 +20,7 @@ from glance.common import utils
 from glance.common import wsgi
 import glance.db
 import glance.store
+from glance.api.v2 import update_image_read_acl
 
 
 class ImageDataController(object):
@@ -37,12 +38,14 @@ class ImageDataController(object):
 
     @utils.mutating
     def upload(self, req, image_id, data, size):
-        self._get_image(req.context, image_id)
+        image = self._get_image(req.context, image_id)
         try:
             location, size, checksum = self.store_api.add_to_backend(
                     req.context, 'file', image_id, data, size)
         except exception.Duplicate:
             raise webob.exc.HTTPConflict()
+
+        update_image_read_acl(req, self.db_api, image)
 
         values = {'location': location, 'size': size, 'checksum': checksum}
         self.db_api.image_update(req.context, image_id, values)
